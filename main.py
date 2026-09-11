@@ -5,10 +5,8 @@ import random
 import logging
 import urllib.parse
 import requests
-import gspread
 import datetime
 import pytz
-from google.oauth2.service_account import Credentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
     Application,
@@ -37,371 +35,159 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6KKqFNcTY5oTboA2_TKSK-X7dv
 FB_PAGE_ID = os.getenv("FB_PAGE_ID", "THAY_PAGE_ID_CUA_BAN")
 FB_PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN", "THAY_PAGE_TOKEN_CUA_BAN")
 
-GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Content_Plan")
-
-# Đường dẫn tuyệt đối chứa file credentials.json
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
-    "GOOGLE_SERVICE_ACCOUNT_FILE", 
-    os.path.join(BASE_DIR, "credentials.json")
-)
-
 # Khởi tạo Gemini Client
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-
 # ==================================
-# 2. KẾT NỐI GOOGLE SHEET
+# 2. NỘI DUNG TUYỂN DỤNG CỐ ĐỊNH TRONG CODE
 # ==================================
-def connect_google_sheet():
-    """Kết nối tới Google Sheet"""
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    try:
-        creds = Credentials.from_service_account_file(GOOGLE_SERVICE_ACCOUNT_FILE, scopes=scopes)
-        gc = gspread.authorize(creds)
-        sh = gc.open(GOOGLE_SHEET_NAME)
-        return sh.sheet1
-    except Exception as e:
-        logger.error(f"❌ Lỗi kết nối Google Sheet: {e}")
-        return None
+RECRUITMENT_CONTENT = """CN CÔNG TY TNHH DAISSHO VN
+Địa chỉ: KCN Kim Huy, Bình Dương
+TUYỂN GẤP CÔNG NHÂN CHÍNH THỨC VÀ THỜI VỤ
 
-def get_next_topic_from_sheet():
-    """Tìm chủ đề tiếp theo chưa đăng trong Sheet"""
-    sheet = connect_google_sheet()
-    if not sheet:
-        return None, None
-    
-    try:
-        records = sheet.get_all_values()
-        if len(records) <= 1:
-            logger.warning("⚠️ Sheet rỗng hoặc chỉ có dòng tiêu đề!")
-            return None, None
+📌 LƯƠNG THỬ VIỆC: 7.200.000đ (LCB 6.000.000 + 1.200.000 PC)
+📌 LƯƠNG CHÍNH THỨC: 7.500.000đ (LCB 6.000.000 + 1.500.000 PC)
 
-        for idx, row in enumerate(records[1:], start=2):
-            topic = row[0].strip() if len(row) > 0 else ""
-            status = row[1].strip().lower() if len(row) > 1 else ""
-            
-            if topic and status != "đã đăng":
-                logger.info(f"📌 Đã tìm thấy chủ đề dòng {idx}: '{topic}' (Trạng thái: '{status}')")
-                return idx, topic
-    except Exception as e:
-        logger.error(f"❌ Lỗi đọc dữ liệu Google Sheet: {e}")
-        
-    return None, None
+🔹 YÊU CẦU:
+- Nam Nữ biết đọc viết
+- Chịu khó siêng năng
+- Làm việc ca 12 tiếng xoay ca ngày đêm
 
-def mark_topic_as_posted(row_index):
-    """Cập nhật trạng thái 'Đã đăng' vào Google Sheet"""
-    sheet = connect_google_sheet()
-    if sheet and row_index:
-        try:
-            sheet.update_acell(f"B{row_index}", "Đã đăng")
-            logger.info(f"✅ Đã cập nhật dòng {row_index} thành 'Đã đăng'")
-        except Exception as e:
-            logger.error(f"❌ Lỗi cập nhật trạng thái Google Sheet: {e}")
+🎁 CHẾ ĐỘ & QUYỀN LỢI:
+- Ngoài lương ra có: thưởng tuần, thưởng tháng, thưởng chủ nhật
+- Công ty bao cơm
+
+💰 THU NHẬP 26 CÔNG TỪ: 13.000.000đ - 15.000.000đ
+
+📞 LIÊN HỆ NGAY: 0348861186"""
 
 
 # ==================================
-# 3. TẠO BỘ 4 ẢNH AI MIỄN PHÍ
+# 3. TẠO POSTER AI KHÔNG TRÙNG LẶP
 # ==================================
 def tao_anh_ai_mien_phi(prompt_en: str):
     seed = random.randint(1, 999999)
     encoded_prompt = urllib.parse.quote(prompt_en)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={seed}"
+    # Tỷ lệ 4:5 hoặc 1:1 phù hợp làm poster quảng cáo
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1280&nologo=true&seed={seed}"
     
     try:
         response = requests.get(image_url, timeout=45)
         if response.status_code == 200:
             return response.content
     except Exception as e:
-        logger.error(f"Lỗi tải ảnh: {e}")
+        logger.error(f"Lỗi tải ảnh poster: {e}")
     return None
 
-async def tao_4_anh_ai_sinh_dong(chu_de: str):
-    prompt_gen_prompts = f"""
-    Dựa vào chủ đề: "{chu_de}", hãy viết 4 đoạn mô tả ảnh (Prompts) bằng tiếng Anh hoàn toàn khác nhau để vẽ ảnh sản phẩm/công nghệ cực kỳ sống động và bắt mắt.
-    1. Ảnh 1: Ảnh chụp sản phẩm góc rộng hiện đại, banner thương mại chuyên nghiệp.
-    2. Ảnh 2: Ảnh cận cảnh chi tiết linh kiện/công nghệ pin Lithium cao cấp.
-    3. Ảnh 3: Ảnh ứng dụng thực tế trong đời sống hoặc hệ thống năng lượng mặt trời.
-    4. Ảnh 4: Ảnh minh họa đồ họa 3D ấn tượng hoặc biểu tượng tương lai sinh động.
+async def tao_cac_poster_tuyen_dung():
+    """Gemini AI tạo ra các ý tưởng thiết kế poster hoàn toàn khác biệt, không bị trùng lặp"""
+    prompt_gen = f"""
+    Dựa vào thông tin tuyển dụng công nhân của công ty Daissho VN:
+    "{RECRUITMENT_CONTENT}"
+    
+    Hãy viết 3 đoạn mô tả (Prompts) bằng tiếng Anh cực kỳ chuyên nghiệp, sáng tạo, sắc nét để tạo ra 3 mẫu **Poster quảng cáo tuyển dụng việc làm** khác nhau hoàn toàn về phong cách, bố cục và màu sắc (Đảm bảo các poster KHÔNG ĐƯỢC PHÉP TRÙNG NHAU):
+    1. Poster 1: Phong cách thiết kế đồ họa hiện đại, phẳng (Modern Flat Graphic Design), màu sắc chủ đạo xanh dương/trắng chuyên nghiệp, có không gian trống để hiển thị thông tin tuyển dụng, biểu tượng nhà xưởng công nghệ cao.
+    2. Poster 2: Phong cách poster thương mại nổi bật (Vibrant Commercial Advertising Poster), tông màu cam/vàng năng động, hình ảnh minh họa công nhân làm việc vui vẻ, chuyên nghiệp, hiện đại.
+    3. Poster 3: Phong cách tối giản cao cấp (High-end Minimalist Corporate Poster), kết hợp giữa công nghiệp thông minh và con người, màu xanh lá/xám sang trọng, bố cục sạch sẽ.
 
-    Yêu cầu trả về đúng 4 dòng, mỗi dòng là 1 prompt tiếng Anh, không kèm số thứ tự hay văn bản thừa.
+    Yêu cầu trả về đúng 3 dòng, mỗi dòng là 1 prompt tiếng Anh chi tiết, không kèm số thứ tự hay văn bản thừa.
     """
     
     try:
         res = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
-            contents=prompt_gen_prompts
+            contents=prompt_gen
         )
-        prompts = [p.strip() for p in res.text.strip().split("\n") if p.strip()][:4]
+        prompts = [p.strip() for p in res.text.strip().split("\n") if p.strip()][:3]
     except Exception as e:
-        logger.error(f"Lỗi sinh prompt ảnh Gemini: {e}")
+        logger.error(f"Lỗi sinh prompt poster từ Gemini: {e}")
         prompts = []
     
-    while len(prompts) < 4:
-        prompts.append(f"High quality modern commercial photo about {chu_de}, 8k resolution, cinematic lighting")
+    # Dự phòng nếu lỗi API
+    fallback_prompts = [
+        "Professional recruitment poster design for manufacturing company, modern blue and white corporate style, clean typography layout, 8k resolution",
+        "Vibrant job hiring advertisement poster, energetic orange and yellow theme, happy industrial workers, modern factory background, high quality",
+        "Minimalist corporate recruitment banner design, green and gray professional tones, smart factory concept, sleek graphic layout"
+    ]
+    
+    while len(prompts) < 3:
+        prompts.append(fallback_prompts[len(prompts)])
 
     list_images = []
-    for p in prompts:
-        img_bytes = tao_anh_ai_mien_phi(p)
+    for idx, p in enumerate(prompts):
+        # Đảm bảo mỗi poster có biến thể ngẫu nhiên riêng biệt
+        unique_prompt = f"{p}, unique variation style {random.randint(100, 999)}"
+        img_bytes = tao_anh_ai_mien_phi(unique_prompt)
         if img_bytes:
             list_images.append(img_bytes)
-        time.sleep(0.5)
+        time.sleep(0.8)
         
     return list_images
 
 
 # ==================================
-# 4. TIẾN TRÌNH SOẠN BÀI TỰ ĐỘNG
+# 4. TIẾN TRÌNH TẠO & GỬI DUYỆT
 # ==================================
-async def auto_generate_and_send_review(app_context: ContextTypes.DEFAULT_TYPE, chat_id: int, row_idx=None, topic=None):
-    if not topic:
-        row_idx, topic = get_next_topic_from_sheet()
-    
-    if not topic:
-        await app_context.bot.send_message(
-            chat_id=chat_id, 
-            text="⚠️ **Google Sheet đã hết chủ đề chưa đăng!**\nVui lòng thêm nội dung mới vào Cột A của file `Content_Plan`."
-        )
-        return
-
+async def auto_generate_and_send_review(app_context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     await app_context.bot.send_message(
         chat_id=chat_id, 
-        text=f"⏰ **[TIẾN TRÌNH TẠO BÀI]**\n📌 Chủ đề (Dòng {row_idx}):\n👉 **{topic}**\n\n*Đang tiến hành viết nội dung & tạo 4 ảnh AI mới...*"
+        text="⏰ **[HỆ THỐNG TẠO POSTER TUYỂN DỤNG]**\n\n*Đang yêu cầu AI thiết kế bộ 3 mẫu poster độc quyền, không trùng lặp cho Daissho VN...*"
     )
 
     try:
-        # 1. Viết bài bằng Gemini
-        prompt_text = f"Viết 1 bài đăng Facebook marketing bán hàng tiếng Việt hấp dẫn, có tiêu đề sinh động, câu từ thu hút, hashtag, emoji phong phú, độ dài 150-200 từ về chủ đề: {topic}"
-        res_text = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt_text
-        )
-        bai_viet = res_text.text
-
-        # 2. Sinh 4 ảnh AI
-        images_list = await tao_4_anh_ai_sinh_dong(topic)
+        # 1. Sinh 3 poster AI độc đáo
+        images_list = await tao_cac_poster_tuyen_dung()
 
         if not images_list:
-            await app_context.bot.send_message(chat_id=chat_id, text="❌ Lỗi: Không thể sinh ra ảnh AI nào!")
+            await app_context.bot.send_message(chat_id=chat_id, text="❌ Lỗi: Không thể khởi tạo poster AI!")
             return
 
-        # Lưu dữ liệu bài viết hiện tại vào bot_data
+        # Lưu dữ liệu bài viết và poster vào bot_data để xử lý duyệt/sửa
         app_context.bot_data['pending_post'] = {
-            'text': bai_viet,
-            'images': images_list,
-            'sheet_row': row_idx,
-            'topic': topic
+            'text': RECRUITMENT_CONTENT,
+            'images': images_list
         }
 
-        # 3. Gửi 4 ảnh lên Telegram dưới dạng Album
+        # 2. Gửi 3 poster lên Telegram dưới dạng Album
         media_group = [InputMediaPhoto(media=io.BytesIO(img)) for img in images_list]
         await app_context.bot.send_media_group(chat_id=chat_id, media=media_group)
 
-        # 4. Gửi nội dung kèm nút thao tác
+        # 3. Gửi nội dung kèm các nút thao tác duyệt
         action_keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🟢 Duyệt & Đăng ngay", callback_data="btn_approve_post"),
-                InlineKeyboardButton("🔄 Soạn lại toàn bộ", callback_data="btn_regen_post")
+                InlineKeyboardButton("🟢 Duyệt & Đăng Facebook", callback_data="btn_approve_post"),
+                InlineKeyboardButton("🔄 Tạo lại bộ poster mới", callback_data="btn_regen_post")
             ],
             [
-                InlineKeyboardButton("🔴 Bỏ qua / Hủy", callback_data="btn_cancel_post")
+                InlineKeyboardButton("🔴 Hủy bỏ", callback_data="btn_cancel_post")
             ]
         ])
 
         await app_context.bot.send_message(
             chat_id=chat_id,
-            text=f"📝 **NỘI DUNG ĐÃ SOẠN (KÈM 4 ẢNH TRÊN):**\n\n{bai_viet}\n\n💡 *Mẹo: Bạn có thể nhắn tin trực tiếp để bảo Bot sửa bài này (Ví dụ: 'Sửa lại tiêu đề ngắn hơn')*",
+            text=f"📝 **NỘI DUNG BÀI ĐĂNG TUYỂN DỤNG:**\n\n{RECRUITMENT_CONTENT}\n\n💡 *Mẹo: Nếu bạn muốn thay đổi nội dung hoặc yêu cầu đổi kiểu poster, hãy nhắn tin trực tiếp vào đây (Ví dụ: 'Sửa lại phần lương nổi bật hơn' hoặc 'Tạo lại poster phong cách tối giản hơn')*",
             reply_markup=action_keyboard
         )
 
     except Exception as e:
-        logger.error(f"Lỗi tiến trình soạn bài: {e}")
-        await app_context.bot.send_message(chat_id=chat_id, text=f"❌ Lỗi trong quá trình soạn bài: {e}")
+        logger.error(f"Lỗi tiến trình tạo poster: {e}")
+        await app_context.bot.send_message(chat_id=chat_id, text=f"❌ Lỗi trong quá trình tạo poster: {e}")
 
 
 # ==================================
-# 5. XỬ LÝ NHẮN TIN TRỰC TIẾP ĐỂ SỬA BÀI (TÍNH NĂNG 2)
+# 5. XỬ LÝ NHẮN TIN TRỰC TIẾP ĐỂ SỬA (COMMENT)
 # ==================================
 async def handle_user_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
     pending_post = context.bot_data.get('pending_post')
 
     if not pending_post:
-        await update.message.reply_text("💡 Chưa có bài viết nào đang chờ duyệt. Hãy gõ `/runnow` để lấy bài từ Google Sheet nhé!")
+        await update.message.reply_text("💡 Chưa có bài viết nào đang chờ duyệt. Gõ lệnh `/runnow` để bắt đầu tạo poster tuyển dụng nhé!")
         return
 
-    await update.message.reply_text(f"🔄 **Đang chỉnh sửa lại bài viết theo yêu cầu:**\n👉 *\"{user_text}\"*")
+    await update.message.reply_text(f"🔄 **Đang xử lý yêu cầu chỉnh sửa của bạn:**\n👉 *\"{user_text}\"*")
 
     try:
-        old_text = pending_post['text']
-        topic = pending_post['topic']
-
-        prompt_rewrite = f"""
-        Dưới đây là bài đăng Facebook hiện tại về chủ đề '{topic}':
-        ---
-        {old_text}
-        ---
-        Yêu cầu chỉnh sửa từ người dùng: "{user_text}".
-
-        Hãy viết lại bài đăng Facebook marketing này chuẩn chỉnh hơn theo đúng yêu cầu chỉnh sửa trên. Giữ nguyên định dạng bài đăng hấp dẫn, emoji và hashtag phù hợp.
-        """
-
-        res_text = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt_rewrite
-        )
-        new_bai_viet = res_text.text
-
-        # Cập nhật lại bài viết trong bộ nhớ
-        pending_post['text'] = new_bai_viet
-        context.bot_data['pending_post'] = pending_post
-
-        action_keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🟢 Duyệt & Đăng ngay", callback_data="btn_approve_post"),
-                InlineKeyboardButton("🔄 Soạn lại toàn bộ", callback_data="btn_regen_post")
-            ],
-            [
-                InlineKeyboardButton("🔴 Bỏ qua / Hủy", callback_data="btn_cancel_post")
-            ]
-        ])
-
-        await update.message.reply_text(
-            text=f"📝 **NỘI DUNG ĐÃ SỬA THEO YÊU CẦU:**\n\n{new_bai_viet}\n\n💡 *Nhắn tin tiếp nếu muốn chỉnh sửa thêm!*",
-            reply_markup=action_keyboard
-        )
-
-    except Exception as e:
-        logger.error(f"Lỗi sửa bài viết: {e}")
-        await update.message.reply_text(f"❌ Lỗi khi sửa bài: {e}")
-
-
-# ==================================
-# 6. XỬ LÝ NÚT DUYỆT / SOẠN LẠI TỪ TELEGRAM
-# ==================================
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    pending_post = context.bot_data.get('pending_post')
-
-    if data == "btn_approve_post":
-        if not pending_post:
-            await query.edit_message_text("❌ Không tìm thấy thông tin bài viết cần duyệt.")
-            return
-
-        await query.edit_message_text("⏳ **Đang tiến hành đăng bài viết kèm 4 ảnh lên Fanpage...**")
-
-        success, msg = dang_album_len_facebook_fanpage(pending_post['text'], pending_post['images'])
-
-        if success:
-            mark_topic_as_posted(pending_post.get('sheet_row'))
-            await query.edit_message_text(f"✅ **ĐÃ ĐĂNG BÀI THÀNH CÔNG LÊN FANPAGE!**\n\n{pending_post['text']}")
-            context.bot_data.pop('pending_post', None)
-        else:
-            await query.edit_message_text(f"❌ **Đăng bài thất bại:** {msg}")
-
-    elif data == "btn_regen_post":
-        if not pending_post:
-            await query.edit_message_text("❌ Không tìm thấy chủ đề để tạo lại.")
-            return
-
-        row_idx = pending_post.get('sheet_row')
-        topic = pending_post.get('topic')
-        
-        await query.edit_message_text(f"🔄 **Đang tiến hành tạo lại nội dung & ảnh mới cho chủ đề:**\n👉 *{topic}*")
-        await auto_generate_and_send_review(context, query.message.chat_id, row_idx=row_idx, topic=topic)
-
-    elif data == "btn_cancel_post":
-        context.bot_data.pop('pending_post', None)
-        await query.edit_message_text("🚫 **Đã hủy bài viết này.** Google Sheet vẫn giữ nguyên trạng thái chưa đăng.")
-
-
-# ==================================
-# 7. ĐĂNG ALBUM ẢNH LÊN FACEBOOK FANPAGE
-# ==================================
-def dang_album_len_facebook_fanpage(text: str, images_bytes_list: list):
-    if FB_PAGE_ID == "THAY_PAGE_ID_CUA_BAN" or FB_PAGE_ACCESS_TOKEN == "THAY_PAGE_TOKEN_CUA_BAN":
-        return False, "Chưa thiết lập Access Token hoặc Page ID Facebook."
-
-    attached_media = []
-
-    try:
-        for idx, img_bytes in enumerate(images_bytes_list):
-            url_upload = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
-            payload = {
-                'published': 'false',
-                'access_token': FB_PAGE_ACCESS_TOKEN
-            }
-            files = {'source': (f'image_{idx}.jpg', img_bytes, 'image/jpeg')}
-            
-            res = requests.post(url_upload, data=payload, files=files, timeout=30).json()
-            if "id" in res:
-                attached_media.append({"media_fbid": res["id"]})
-
-        if not attached_media:
-            return False, "Không thể upload ảnh lên Facebook."
-
-        url_feed = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
-        feed_payload = {
-            'message': text,
-            'access_token': FB_PAGE_ACCESS_TOKEN
-        }
-        
-        for i, media in enumerate(attached_media):
-            feed_payload[f'attached_media[{i}]'] = f'{{"media_fbid":"{media["media_fbid"]}"}}'
-
-        res_post = requests.post(url_feed, data=payload, files=files, timeout=30).json() if False else requests.post(url_feed, data=feed_payload, timeout=30).json()
-        
-        if "id" in res_post:
-            return True, res_post["id"]
-        else:
-            return False, res_post.get("error", {}).get("message", "Lỗi tạo bài đăng Feed")
-
-    except Exception as e:
-        return False, str(e)
-
-
-# ==================================
-# 8. LỆNH ĐIỀU KHIỂN & LẬP LỊCH CHẠY
-# ==================================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_chat_id = update.message.chat_id
-    await update.message.reply_text(
-        f"🚀 **Bot Auto Content Marketing Pro**\n\n"
-        f"📌 **Chat ID của bạn:** `{user_chat_id}`\n\n"
-        f"👉 Lệnh `/runnow`: Chạy thử ngay tiến trình soạn bài từ Google Sheet.",
-        parse_mode="Markdown"
-    )
-
-async def run_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await auto_generate_and_send_review(context, update.message.chat_id)
-
-async def scheduled_job(context: ContextTypes.DEFAULT_TYPE):
-    if MY_TELEGRAM_CHAT_ID != 123456789:
-        await auto_generate_and_send_review(context, MY_TELEGRAM_CHAT_ID)
-
-
-# ==================================
-# 9. KHỞI CHẠY BOT
-# ==================================
-if __name__ == "__main__":
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("runnow", run_now))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    
-    # Bổ sung bộ xử lý tin nhắn chữ từ người dùng để sửa bài
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_user_text_message))
-
-    tz = pytz.timezone('Asia/Ho_Chi_Minh')
-    job_time = datetime.time(hour=8, minute=0, second=0, tzinfo=tz)
-    app.job_queue.run_daily(scheduled_job, time=job_time)
-
-    logger.info("🤖 Bot đang chạy và sẵn sàng nhận tin nhắn sửa bài...")
-    app.run_polling()
+        # Dùng Gemini thông minh để hiểu yêu cầu sửa nội dung hoặc thay đổi ý tưởng thiết kế
+        prompt_edit = f"""
+        Đây là nội dung tuyển dụng hiện tại:
