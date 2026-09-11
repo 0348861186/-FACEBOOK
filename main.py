@@ -316,10 +316,6 @@ def approve_poster(poster_id):
 # GEMINI
 # ============================================================
 
-# ============================================================
-# GEMINI
-# ============================================================
-
 def gemini_client():
 
     if not GEMINI_API_KEY:
@@ -327,8 +323,7 @@ def gemini_client():
             "Chưa cấu hình GEMINI_API_KEY."
         )
 
-    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
-    return genai.Client()
+    return genai.Client(api_key=GEMINI_API_KEY)
 
 
 def create_design_prompt(
@@ -354,36 +349,6 @@ chuyên thiết kế poster quảng cáo và tuyển dụng.
 Hãy tạo một poster quảng cáo cực kỳ bắt mắt,
 hiện đại, chuyên nghiệp, cao cấp và có khả năng
 thu hút người xem ngay trong 2-3 giây đầu tiên.
-
-==================================================
-NỘI DUNG QUẢNG CÁO
-==================================================
-
-{content}
-
-==================================================
-YÊU CẦU THIẾT KẾ
-==================================================
-
-- Giữ chính xác nội dung quan trọng.
-- Không tự ý bịa thông tin.
-- Không tự thêm số điện thoại.
-- Không tự thêm mức lương.
-- Không tự thêm địa chỉ.
-- Không làm sai tên công ty.
-- Tiếng Việt phải có dấu chính xác.
-- Tiêu đề chính cực kỳ nổi bật.
-- Thông tin phụ dễ đọc.
-- Typography chuyên nghiệp.
-- Bố cục rõ ràng.
-- Tối ưu hiển thị trên điện thoại.
-- Có hình ảnh minh họa phù hợp.
-- Hình ảnh phải tự nhiên.
-- Không watermark.
-- Không logo giả.
-- Không làm poster quá nhiều chữ.
-- Không làm bố cục lộn xộn.
-
 ==================================================
 PHONG CÁCH
 ==================================================
