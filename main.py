@@ -170,10 +170,14 @@ def update_poster_telegram_id(poster_id, msg_id):
 # GEMINI AI (Sinh ảnh bằng Google GenAI SDK mới)
 # ============================================================
 
+import os
+
 def gemini_client():
     if not GEMINI_API_KEY:
         raise RuntimeError("Chưa cấu hình GEMINI_API_KEY.")
-    return genai.Client(api_key=GEMINI_API_KEY)
+    # Đảm bảo SDK mới nhận diện đúng API key thay vì OAuth
+    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+    return genai.Client()
 
 def create_design_prompt(content, previous_styles=None, revision=None):
     previous_styles = previous_styles or []
