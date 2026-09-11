@@ -323,6 +323,10 @@ def gemini_client():
             "Chưa cấu hình GEMINI_API_KEY."
         )
 
+    # Đảm bảo gán đầy đủ cả 2 biến môi trường chuẩn của SDK google-genai
+    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+    os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
+
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
