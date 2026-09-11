@@ -323,7 +323,7 @@ def gemini_client():
     # Gán vào biến môi trường để SDK tự động nhận diện chính xác
     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
     return genai.Client()
-        api_key=GEMINI_API_KEY
+    api_key=GEMINI_API_KEY
     )
 
 
