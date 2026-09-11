@@ -325,9 +325,7 @@ def gemini_client():
     return genai.Client()
     api_key=GEMINI_API_KEY
     )
-
-
-def create_design_prompt(
+    def create_design_prompt(
     content,
     previous_styles=None,
     revision=None
