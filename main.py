@@ -317,15 +317,17 @@ def approve_poster(poster_id):
 # ============================================================
 
 def gemini_client():
+
     if not GEMINI_API_KEY:
-        raise RuntimeError("Chưa cấu hình GEMINI_API_KEY.")
-    
-    # Gán vào biến môi trường để SDK tự động nhận diện chính xác
+        raise RuntimeError(
+            "Chưa cấu hình GEMINI_API_KEY."
+        )
+
     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
     return genai.Client()
-    api_key=GEMINI_API_KEY
-    )
-    def create_design_prompt(
+
+
+def create_design_prompt(
     content,
     previous_styles=None,
     revision=None
