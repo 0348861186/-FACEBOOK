@@ -1,5 +1,5 @@
 streamlit
+google-genai
 pillow
 pydantic
 requests
-google-genai
