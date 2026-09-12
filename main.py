@@ -25,8 +25,6 @@ from google.genai import types
 # ------------------------------------------------------------------------------
 # 1. KHỞI TẠO CLIENT
 # ------------------------------------------------------------------------------
-# Yêu cầu cài biến môi trường: export GEMINI_API_KEY="your_api_key_here"
-# Hoặc truyền trực tiếp: client = genai.Client(api_key="...")
 client = genai.Client()
 
 # ------------------------------------------------------------------------------
