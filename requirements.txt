@@ -1,11 +1,4 @@
-python-telegram-bot[job-queue]
-streamlit>=1.50.0
-google-genai>=2.23.0
-Pillow>=11.0.0
-requests>=2.32.0
 google-genai>=1.0.0
+pillow
+pydantic
 streamlit
-google-generativeai
-Pillow
-requests
-schedule
