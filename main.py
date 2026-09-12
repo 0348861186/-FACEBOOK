@@ -117,33 +117,79 @@ def render_poster(data: JobPosterData, output_path: str):
     image.save(output_path)
 
 # ================= 4. TELEGRAM BOT HANDLER =================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_input = update.message.text
+import streamlit as st
+
+st.set_page_config(page_title="AI Poster Generator", layout="wide")
+st.title("📢 Trình Tạo Poster Tuyển Dụng AI")
+
+# Quản lý state hội thoại và dữ liệu poster hiện tại
+if "poster_data" not in st.session_state:
+    st.session_state.poster_data = None
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+col_input, col_preview = st.columns([1, 1], gap="medium")
+
+with col_input:
+    st.subheader("📝 Nhập nội dung")
     
-    await update.message.reply_text("⏳ Gemini AI đang phân tích và render poster...")
-
-    # Phân tích nội dung (mới hoặc chỉnh sửa tiếp theo luồng)
-    previous_data = user_posters.get(chat_id)
-    poster_data = extract_or_update_job(user_input, current_data=previous_data)
-    user_posters[chat_id] = poster_data
-
-    # Xuất ảnh
-    output_filename = f"poster_{chat_id}.png"
-    render_poster(poster_data, output_filename)
-
-    # Gửi lại kết quả
-    label = "Poster phiên bản 2 (Đã chỉnh sửa)" if previous_data else "Poster Final (Phiên bản đầu)"
-    with open(output_filename, "rb") as photo:
-        await context.bot.send_photo(
-            chat_id=chat_id,
-            photo=photo,
-            caption=f"✅ **{label}**\n\nBạn có thể tải về trực tiếp hoặc nhắn nội dung cần sửa để AI điều chỉnh tiếp."
+    if st.session_state.poster_data is None:
+        user_input = st.text_area(
+            "Dán nội dung tuyển dụng thô vào đây:",
+            placeholder="Ví dụ: Cần tuyển 2 nhân viên bán hàng tại Q1, lương 8-10 triệu. Yêu cầu giao tiếp tốt...",
+            height=200
         )
+        submit_label = "🚀 Phân tích & Tạo Poster"
+    else:
+        st.success("Đã có Poster phiên bản trước. Nhập yêu cầu chỉnh sửa:")
+        user_input = st.text_area(
+            "Yêu cầu sửa đổi:",
+            placeholder="Ví dụ: Đổi lương thành 12-15 triệu, đổi nền sang màu xanh navy...",
+            height=120
+        )
+        submit_label = "🔄 Cập nhật Poster"
 
-# ================= 5. RUN SERVER =================
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("🚀 Bot đã sẵn sàng nhận tin tuyển dụng...")
-    app.run_polling()
+    if st.button(submit_label, type="primary", use_container_width=True):
+        if not user_input.strip():
+            st.warning("Vui lòng nhập nội dung trước khi bấm tạo.")
+        else:
+            with st.spinner("⏳ Gemini AI đang phân tích và render poster..."):
+                try:
+                    # Gọi Gemini để tạo mới hoặc update theo schema
+                    poster_data = extract_or_update_job(
+                        raw_text=user_input, 
+                        current_data=st.session_state.poster_data
+                    )
+                    st.session_state.poster_data = poster_data
+                    
+                    # Render ảnh
+                    output_filename = "poster_latest.png"
+                    render_poster(poster_data, output_filename)
+                    st.session_state.poster_image = output_filename
+                    st.session_state.history.append(user_input)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi khi xử lý: {e}")
+
+    if st.session_state.poster_data is not None:
+        if st.button("🗑️ Tạo mới từ đầu (Reset)", use_container_width=True):
+            st.session_state.poster_data = None
+            st.session_state.poster_image = None
+            st.rerun()
+
+with col_preview:
+    st.subheader("🖼️ Poster Kết Quả")
+    if "poster_image" in st.session_state and st.session_state.poster_image:
+        st.image(st.session_state.poster_image, use_container_width=True)
+        
+        # Nút Download trực tiếp
+        with open(st.session_state.poster_image, "rb") as file:
+            st.download_button(
+                label="⬇️ Tải xuống Poster (PNG)",
+                data=file,
+                file_name="recruitment_poster.png",
+                mime="image/png",
+                use_container_width=True
+            )
+    else:
+        st.info("Poster sau khi tạo sẽ hiển thị tại đây.")
