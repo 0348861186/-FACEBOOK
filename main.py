@@ -49,15 +49,11 @@ def extract_recruitment_info(raw_text: str) -> RecruitmentData:
     """
     Sử dụng mô hình Gemini để đọc hiểu và chuẩn hóa văn bản tuyển dụng thành cấu trúc JSON.
     """
-    prompt = (
-        "Bạn là chuyên gia thiết kế truyền thông và nhân sự. "
-        "Hãy đọc tin tuyển dụng dưới đây và trích xuất các trường thông tin chuẩn xác, "
-        "đồng thời tạo một prompt tiếng Anh tạo ảnh nền phù hợp nhất:
+    prompt = f"""Bạn là chuyên gia thiết kế truyền thông và nhân sự.
+Hãy đọc tin tuyển dụng dưới đây và trích xuất các trường thông tin chuẩn xác, đồng thời tạo một prompt tiếng Anh tạo ảnh nền phù hợp nhất:
 
-"
-        f"{raw_text}"
-    )
-    
+{raw_text}"""
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
@@ -86,7 +82,7 @@ def generate_background_image(theme_prompt: str) -> Image.Image:
         prompt=refined_prompt,
         config=types.GenerateImagesConfig(
             number_of_images=1,
-            aspect_ratio="3:4",  # Tỉ lệ poster dọc chuẩn cho mạng xã hội
+            aspect_ratio="3:4",
             output_mime_type="image/png"
         )
     )
@@ -100,15 +96,14 @@ def render_poster(bg_image: Image.Image, data: RecruitmentData) -> Image.Image:
     """
     Tạo poster 1080x1440, phủ layer làm dịu nền và căn chỉnh typography chuẩn.
     """
-    # Chuẩn hóa độ phân giải poster
     poster = bg_image.resize((1080, 1440))
     overlay = Image.new("RGBA", poster.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    # Khung nền mờ màu đen sẫm (Slate Dark bán trong suốt) để chữ luôn sắc nét
+    # Khung nền mờ màu đen sẫm
     draw.rectangle([(60, 240), (1020, 1380)], fill=(15, 23, 42, 215))
 
-    # Font chữ (tìm font hỗ trợ tiếng Việt trên hệ thống)
+    # Font chữ
     font_candidates = [
         "Roboto-Bold.ttf", "arial.ttf", "DejaVuSans-Bold.ttf", 
         "segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -188,15 +183,12 @@ def refine_recruitment_data(current_data: RecruitmentData, feedback: str) -> Rec
     """
     Cho phép người dùng đưa ra feedback chỉnh sửa để Gemini cập nhật lại JSON.
     """
-    prompt = (
-        f"Dưới đây là thông tin tuyển dụng hiện tại:
+    prompt = f"""Dưới đây là thông tin tuyển dụng hiện tại:
 {current_data.model_dump_json(indent=2)}
 
-"
-        f"Yêu cầu chỉnh sửa từ người dùng: {feedback}
-"
-        f"Hãy cập nhật lại dữ liệu tuyển dụng theo đúng yêu cầu trên."
-    )
+Yêu cầu chỉnh sửa từ người dùng: {feedback}
+Hãy cập nhật lại dữ liệu tuyển dụng theo đúng yêu cầu trên."""
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
@@ -219,12 +211,10 @@ def execute_pipeline(raw_jd_text: str, telegram_token: str = None, chat_id: str 
     print(f"-> Công ty: {data.company_name}")
     print(f"-> Lương: {data.salary_range}")
 
-    print("
-BƯỚC 2: Đang tạo ảnh nền với Gemini Image AI (Imagen 3)...")
+    print("\nBƯỚC 2: Đang tạo ảnh nền với Gemini Image AI (Imagen 3)...")
     bg_img = generate_background_image(data.visual_theme_prompt)
 
-    print("
-BƯỚC 3: Đang ghép bố cục Typography với Pillow...")
+    print("\nBƯỚC 3: Đang ghép bố cục Typography với Pillow...")
     final_poster = render_poster(bg_img, data)
     
     # Tải / Lưu file poster
@@ -233,11 +223,8 @@ BƯỚC 3: Đang ghép bố cục Typography với Pillow...")
 
     # Gửi qua Telegram nếu có cấu hình token
     if telegram_token and chat_id:
-        print("
-BƯỚC 4: Đang dispatch gửi poster qua Telegram...")
-        caption = f"🚀 Tuyển dụng: {data.job_title} - {data.company_name}
-💰 Lương: {data.salary_range}
-📩 Liên hệ: {data.contact_info}"
+        print("\nBƯỚC 4: Đang dispatch gửi poster qua Telegram...")
+        caption = f"🚀 Tuyển dụng: {data.job_title} - {data.company_name}\n💰 Lương: {data.salary_range}\n📩 Liên hệ: {data.contact_info}"
         send_to_telegram(final_poster, caption, telegram_token, chat_id)
         print("-> Đã gửi thành công qua Telegram!")
 
@@ -261,7 +248,6 @@ if __name__ == "__main__":
     Hồ sơ CV gửi về email: careers@technova.vn hoặc liên hệ Hotline/Zalo: 0912.345.678
     """
     
-    # Chạy quy trình:
     # execute_pipeline(
     #     raw_jd_text=sample_jd,
     #     telegram_token=os.getenv("TELEGRAM_BOT_TOKEN"),
