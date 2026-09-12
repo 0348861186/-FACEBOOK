@@ -289,7 +289,7 @@ def generate_background(
         input=prompt,
         response_format={
             "type": "image",
-            "mime_type": "image/png",  # <-- Đổi dòng này
+            "mime_type": "image/jpeg",  # <-- Đảm bảo dòng này đã đổi thành "image/jpeg"
             "aspect_ratio": "4:5",
             "image_size": "2K",
         },
